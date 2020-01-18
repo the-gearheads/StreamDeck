@@ -1,10 +1,47 @@
+import os
+import threading
 import time
 
-import os
 from networktables import NetworkTables
 from PIL import Image
+from PIL.ImageColor import getcolor, getrgb
+from PIL.ImageOps import grayscale
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
+
+
+def image_tint(src, tint="#ffffff"):
+    if Image.isStringType(src):  # file path?
+        src = Image.open(src)
+    if src.mode not in ["RGB", "RGBA"]:
+        raise TypeError("Unsupported source image mode: {}".format(src.mode))
+    src.load()
+
+    tr, tg, tb = getrgb(tint)
+    tl = getcolor(tint, "L")  # tint color's overall luminosity
+    if not tl:
+        tl = 1  # avoid division by zero
+    tl = float(tl)  # compute luminosity preserving tint factors
+    sr, sg, sb = map(lambda tv: tv / tl, (tr, tg, tb))  # per component
+    # adjustments
+    # create look-up tables to map luminosity to adjusted tint
+    # (using floating-point math only to compute table)
+    luts = (
+        tuple(map(lambda lr: int(lr * sr + 0.5), range(256)))
+        + tuple(map(lambda lg: int(lg * sg + 0.5), range(256)))
+        + tuple(map(lambda lb: int(lb * sb + 0.5), range(256)))
+    )
+    l = grayscale(src)  # 8-bit luminosity version of whole image
+    if Image.getmodebands(src.mode) < 4:
+        merge_args = (src.mode, (l, l, l))  # for RGB verion of grayscale
+    else:  # include copy of src image's alpha layer
+        a = Image.new("L", src.size)
+        a.putdata(src.getdata(3))
+        merge_args = (src.mode, (l, l, l, a))  # for RGBA verion of grayscale
+        luts += tuple(range(256))  # for 1:1 mapping of copied alpha values
+
+    return Image.merge(*merge_args).point(luts)
+
 
 ASSETS_PATH = os.path.join(os.path.dirname(__file__), "Assets")
 
@@ -18,7 +55,7 @@ def render_key_image(deck, icon_filename):
     icon_pos = ((image.width - icon.width) // 2, 0)
     image.paste(icon, icon_pos, icon)
 
-    return PILHelper.to_native_format(deck, image)
+    return image
 
 
 # As a client to connect to a robot
@@ -26,9 +63,6 @@ NetworkTables.initialize(server="127.0.0.1")
 time.sleep(3)
 
 sd = NetworkTables.getTable("StreamDeck")
-
-import threading
-from StreamDeck.DeviceManager import DeviceManager
 
 
 def key_change_callback(deck, key, state):
@@ -47,13 +81,16 @@ class Button:
 
     def update(self, deck):
         x = sd.getBoolean(f"Status/status{self.key}", False)
+        y = sd.getBoolean(f"Action/action{self.key}", False)
+        image = None
         if x:
-            "{}.png".format("Pressed")
             image = render_key_image(deck, "Harold.jpg")
-            deck.set_key_image(self.key, image)
-
         else:
-            "{}.png".format("Released")
+            image = render_key_image(deck, "Pressed.png")
+        if y:
+            image = image_tint(image, tint="#882200")
+        image = PILHelper.to_native_format(deck, image)
+        deck.set_key_image(self.key, image)
 
 
 buttons = []
