@@ -67,11 +67,11 @@ class Button:
         self.active = False
 
     def set(self):
-        sd.putBoolean(f"Action/action{self.key}", True)
+        sd.putBoolean(f"Action/{self.key}", True)
 
     def update(self, deck):
-        x = sd.getBoolean(f"Status/status{self.key}", False)
-        y = sd.getBoolean(f"Action/action{self.key}", False)
+        x = sd.getBoolean(f"Status/{self.key}", False)
+        y = sd.getBoolean(f"Action/{self.key}", False)
         image = None
         if x:
             image = render_key_image(deck, "Harold.jpg")
@@ -92,8 +92,8 @@ sd = NetworkTables.getTable("StreamDeck")
 buttons = []
 
 for i in range(0, 15):
-    sd.putBoolean(f"Action/action{i}", False)
-    sd.putBoolean(f"Status/status{i}", False)
+    sd.putBoolean(f"Action/{i}", False)
+    sd.putBoolean(f"Status/{i}", False)
     button = Button(i)
     buttons.append(button)
 streamdecks = DeviceManager().enumerate()
