@@ -6,44 +6,41 @@ from networktables import NetworkTables
 from PIL import Image
 from PIL.ImageColor import getcolor, getrgb
 from PIL.ImageOps import grayscale
+
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
 
+ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
 
-def image_tint(src, tint="#ffffff"):
-    if Image.isStringType(src):  # file path?
+
+def image_tint(src, tint="#ffffff"):  # From https://stackoverflow.com/a/12310820
+    if Image.isStringType(src):
         src = Image.open(src)
     if src.mode not in ["RGB", "RGBA"]:
         raise TypeError("Unsupported source image mode: {}".format(src.mode))
     src.load()
 
     tr, tg, tb = getrgb(tint)
-    tl = getcolor(tint, "L")  # tint color's overall luminosity
+    tl = getcolor(tint, "L")
     if not tl:
-        tl = 1  # avoid division by zero
-    tl = float(tl)  # compute luminosity preserving tint factors
-    sr, sg, sb = map(lambda tv: tv / tl, (tr, tg, tb))  # per component
-    # adjustments
-    # create look-up tables to map luminosity to adjusted tint
-    # (using floating-point math only to compute table)
+        tl = 1
+    tl = float(tl)
+    sr, sg, sb = map(lambda tv: tv / tl, (tr, tg, tb))
     luts = (
         tuple(map(lambda lr: int(lr * sr + 0.5), range(256)))
         + tuple(map(lambda lg: int(lg * sg + 0.5), range(256)))
         + tuple(map(lambda lb: int(lb * sb + 0.5), range(256)))
     )
-    l = grayscale(src)  # 8-bit luminosity version of whole image
+    l = grayscale(src)
     if Image.getmodebands(src.mode) < 4:
-        merge_args = (src.mode, (l, l, l))  # for RGB verion of grayscale
-    else:  # include copy of src image's alpha layer
+        merge_args = (src.mode, (l, l, l))
+    else:
         a = Image.new("L", src.size)
         a.putdata(src.getdata(3))
-        merge_args = (src.mode, (l, l, l, a))  # for RGBA verion of grayscale
-        luts += tuple(range(256))  # for 1:1 mapping of copied alpha values
+        merge_args = (src.mode, (l, l, l, a))
+        luts += tuple(range(256))
 
     return Image.merge(*merge_args).point(luts)
-
-
-ASSETS_PATH = os.path.join(os.path.dirname(__file__), "Assets")
 
 
 def render_key_image(deck, icon_filename):
@@ -56,13 +53,6 @@ def render_key_image(deck, icon_filename):
     image.paste(icon, icon_pos, icon)
 
     return image
-
-
-# As a client to connect to a robot
-NetworkTables.initialize(server="127.0.0.1")
-time.sleep(3)
-
-sd = NetworkTables.getTable("StreamDeck")
 
 
 def key_change_callback(deck, key, state):
@@ -92,6 +82,12 @@ class Button:
         image = PILHelper.to_native_format(deck, image)
         deck.set_key_image(self.key, image)
 
+
+# As a client to connect to a robot
+NetworkTables.initialize(server="127.0.0.1")
+time.sleep(3)
+
+sd = NetworkTables.getTable("StreamDeck")
 
 buttons = []
 
