@@ -37,10 +37,13 @@ def image_tint(src, tint="#ffffff"):  # From https://stackoverflow.com/a/1231082
     else:
         a = Image.new("L", src.size)
         a.putdata(src.getdata(3))
-        merge_args = (src.mode, (l, l, l, a))
+
         luts += tuple(range(256))
 
     return Image.merge(*merge_args).point(luts)
+
+
+ASSETS_PATH = os.path.join(os.path.dirname(__file__), "icons")
 
 
 def render_key_image(deck, icon_filename):
@@ -53,6 +56,8 @@ def render_key_image(deck, icon_filename):
     image.paste(icon, icon_pos, icon)
 
     return image
+
+
 
 
 def key_change_callback(deck, key, state):
@@ -72,22 +77,43 @@ class Button:
     def update(self, deck):
         x = sd.getBoolean(f"Status/{self.key}", False)
         y = sd.getBoolean(f"Action/{self.key}", False)
+        icon_array = sd.getStringArray("icons", [])
+        name = icon_array[self.key]
         image = None
         if x:
-            image = render_key_image(deck, "Harold.jpg")
+            image = render_key_image(deck, name + "/active.png")
         else:
-            image = render_key_image(deck, "Pressed.png")
+            image = render_key_image(deck, name + "/inactive.png")
         if y:
-            image = image_tint(image, tint="#882200")
+            image = image_tint(image, tint="#882020")
         image = PILHelper.to_native_format(deck, image)
         deck.set_key_image(self.key, image)
 
 
 # As a client to connect to a robot
-NetworkTables.initialize(server="127.0.0.1")
+NetworkTables.initialize(server="10.11.89.2")
 time.sleep(3)
 
+
 sd = NetworkTables.getTable("StreamDeck")
+a = [
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+    "default",
+]
+sd.putStringArray("icons", a)
 
 buttons = []
 
