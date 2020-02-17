@@ -14,8 +14,6 @@ ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
 
 
 def image_tint(src, tint="#ffffff"):  # From https://stackoverflow.com/a/12310820
-    if Image.isStringType(src):
-        src = Image.open(src)
     if src.mode not in ["RGB", "RGBA"]:
         raise TypeError("Unsupported source image mode: {}".format(src.mode))
     src.load()
@@ -58,12 +56,10 @@ def render_key_image(deck, icon_filename):
     return image
 
 
-
-
 def key_change_callback(deck, key, state):
     if state:
         button = buttons[key]
-        button.set()
+        button.set(deck)
 
 
 class Button:
@@ -71,13 +67,14 @@ class Button:
         self.key = key
         self.active = False
 
-    def set(self):
+    def set(self, deck):
         sd.putBoolean(f"Action/{self.key}", True)
+        self.update(deck)
 
     def update(self, deck):
         x = sd.getBoolean(f"Status/{self.key}", False)
         y = sd.getBoolean(f"Action/{self.key}", False)
-        icon_array = sd.getStringArray("icons", [])
+        icon_array = sd.getStringArray("Icons", [])
         name = icon_array[self.key]
         image = None
         if x:
@@ -92,28 +89,29 @@ class Button:
 
 # As a client to connect to a robot
 NetworkTables.initialize(server="10.11.89.2")
+# NetworkTables.initialize(server="127.0.0.1")
 time.sleep(3)
 
 
-sd = NetworkTables.getTable("StreamDeck")
-a = [
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-    "default",
-]
-sd.putStringArray("icons", a)
+sd = NetworkTables.getTable("StreamDeck/0")
+# a = [
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+#     "default",
+# ]
+# sd.putStringArray("Icons", a)
 
 buttons = []
 
@@ -122,34 +120,33 @@ for i in range(0, 15):
     sd.putBoolean(f"Status/{i}", False)
     button = Button(i)
     buttons.append(button)
-streamdecks = DeviceManager().enumerate()
 
-for index, deck in enumerate(streamdecks):
-    deck.open()
-    deck.reset()
-    print(
-        "Opened '{}' device (serial number: '{}')".format(
-            deck.deck_type(), deck.get_serial_number()
-        )
+deck = DeviceManager().enumerate()[0]
+deck.open()
+deck.reset()
+print(
+    "Opened '{}' device (serial number: '{}')".format(
+        deck.deck_type(), deck.get_serial_number()
     )
+)
 
-    # Set initial screen brightness to 30%.
-    deck.set_brightness(30)
-    # Set initial key images.
-    # for key in range(deck.key_count()):
-    #    update_key_image(deck, key, False)
+# Set initial screen brightness to 30%.
+deck.set_brightness(30)
+# Set initial key images.
+# for key in range(deck.key_count()):
+#    update_key_image(deck, key, False)
 
-    # Register callback function for when a key state changes.
-    deck.set_key_callback(key_change_callback)
+# Register callback function for when a key state changes.
+deck.set_key_callback(key_change_callback)
 
-    while True:
-        for button in buttons:
-            button.update(deck)
+while True:
+    for button in buttons:
+        button.update(deck)
 
-    # Wait until all application threads have terminated (for this example,
-    # this is when all deck handles are closed).
-    for t in threading.enumerate():
-        if t is threading.currentThread():
-            continue
-        if t.is_alive():
-            t.join()
+# Wait until all application threads have terminated (for this example,
+# this is when all deck handles are closed).
+for t in threading.enumerate():
+    if t is threading.currentThread():
+        continue
+    if t.is_alive():
+        t.join()
