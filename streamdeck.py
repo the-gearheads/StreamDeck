@@ -80,7 +80,7 @@ class Button:
             name = icon_array[self.key]
         except IndexError:
             return
-        image = render_key_image(deck, name + "/active.png")
+        image = render_key_image(deck, name + "/inactive.png")
         image = PILHelper.to_native_format(deck, image)
         deck.set_key_image(self.key, image)
 
@@ -89,7 +89,6 @@ class Button:
         modes = sd.getStringArray("Modes", [])
 
         try:
-            name = icon_array[self.key]
             mode = modes[self.key]
         except IndexError:
             return
