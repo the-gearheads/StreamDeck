@@ -12,7 +12,7 @@ from PIL.ImageOps import grayscale
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
 
-logging.basicConfig(filename='C:/Users/Gearheads/ok.log',level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
 
 
@@ -50,12 +50,10 @@ ASSETS_PATH = os.path.join(os.path.dirname(__file__), "icons")
 def render_key_image(deck, icon_filename):
 
     image = PILHelper.create_image(deck)
-
-    icon = Image.open(ASSETS_PATH + "/" + icon_filename).convert("RGBA")
-    icon.thumbnail((image.width, image.height - 20), Image.LANCZOS)
-    icon_pos = ((image.width - icon.width) // 2, 0)
-    image.paste(icon, icon_pos, icon)
-    icon.close()
+    with Image.open(ASSETS_PATH + "/" + icon_filename).convert("RGBA") as icon:
+        icon.thumbnail((image.width, image.height - 20), Image.LANCZOS)
+        icon_pos = ((image.width - icon.width) // 2, 0)
+        image.paste(icon, icon_pos, icon)
 
     return image
 
@@ -69,15 +67,25 @@ class Button:
     def __init__(self, key):
         self.key = key
         self.active = False
+        self.reset()
 
     def set(self, deck, state):
         sd.putBoolean(f"Action/{self.key}", True)
         self.active = state
         self.update(deck)
+    
+    def reset(self):
+        icon_array = sd.getStringArray("Icons", [])
+        try:
+            name = icon_array[self.key]
+        except IndexError:
+            return
+        image = render_key_image(deck, name + "/active.png")
+        image = PILHelper.to_native_format(deck, image)
+        deck.set_key_image(self.key, image)
 
     def update(self, deck):
         status = sd.getBoolean(f"Status/{self.key}", False)
-        icon_array = sd.getStringArray("Icons", [])
         modes = sd.getStringArray("Modes", [])
 
         try:
@@ -92,15 +100,15 @@ class Button:
         elif mode == "press":
             action = sd.getBoolean(f"Action/{self.key}", False)
 
-        image = None
-        if status:
-            image = render_key_image(deck, name + "/active.png")
-        else:
-            image = render_key_image(deck, name + "/inactive.png")
-        if action:
-            image = image_tint(image, tint="#882020")
-        image = PILHelper.to_native_format(deck, image)
-        deck.set_key_image(self.key, image)
+        # image = None
+        # if status:
+        #     image = render_key_image(deck, name + "/active.png")
+        # else:
+        #     image = render_key_image(deck, name + "/inactive.png")
+        # if action:
+        #     image = image_tint(image, tint="#882020")
+        # image = PILHelper.to_native_format(deck, image)
+        # deck.set_key_image(self.key, image)
 
 
 # As a client to connect to a robot
@@ -131,18 +139,25 @@ def get_streamdeck():
     return deck
 
 deck = get_streamdeck()
+CONNECTED = False
 try:
     while True:
             if not deck or not deck.connected():
                 deck = get_streamdeck()
                 if not deck:
                     time.sleep(3)
+                CONNECTED = False
                 continue
             if not NetworkTables.isConnected():
                 time.sleep(3)
+                CONNECTED = False
                 continue
             for button in buttons:
                 button.update(deck)
+                if not CONNECTED:
+                    button.reset()
+            CONNECTED = True
+            gc.collect()
 except Exception as e:
     logging.info("EXCEPTING")
     logging.debug("", exc_info=True)
