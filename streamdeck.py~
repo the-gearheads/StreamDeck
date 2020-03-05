@@ -1,8 +1,6 @@
 import os
 import threading
 import time
-import logging
-import gc
 
 from networktables import NetworkTables
 from PIL import Image
@@ -12,7 +10,6 @@ from PIL.ImageOps import grayscale
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
 
-logging.basicConfig(filename='C:/Users/Gearheads/ok.log',level=logging.DEBUG)
 ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
 
 
@@ -55,14 +52,14 @@ def render_key_image(deck, icon_filename):
     icon.thumbnail((image.width, image.height - 20), Image.LANCZOS)
     icon_pos = ((image.width - icon.width) // 2, 0)
     image.paste(icon, icon_pos, icon)
-    icon.close()
 
     return image
 
 
 def key_change_callback(deck, key, state):
-    button = buttons[key]
-    button.set(deck, state)
+    if state:
+        button = buttons[key]
+        button.set(deck)
 
 
 class Button:
@@ -70,34 +67,24 @@ class Button:
         self.key = key
         self.active = False
 
-    def set(self, deck, state):
+    def set(self, deck):
         sd.putBoolean(f"Action/{self.key}", True)
-        self.active = state
         self.update(deck)
 
     def update(self, deck):
-        status = sd.getBoolean(f"Status/{self.key}", False)
+        x = sd.getBoolean(f"Status/{self.key}", False)
+        y = sd.getBoolean(f"Action/{self.key}", False)
         icon_array = sd.getStringArray("Icons", [])
-        modes = sd.getStringArray("Modes", [])
-
         try:
             name = icon_array[self.key]
-            mode = modes[self.key]
         except IndexError:
             return
-
-        action = self.active
-        if mode == "hold":
-            sd.putBoolean(f"Action/{self.key}", action)
-        elif mode == "press":
-            action = sd.getBoolean(f"Action/{self.key}", False)
-
         image = None
-        if status:
+        if x:
             image = render_key_image(deck, name + "/active.png")
         else:
             image = render_key_image(deck, name + "/inactive.png")
-        if action:
+        if y:
             image = image_tint(image, tint="#882020")
         image = PILHelper.to_native_format(deck, image)
         deck.set_key_image(self.key, image)
@@ -105,12 +92,14 @@ class Button:
 
 # As a client to connect to a robot
 NetworkTables.initialize(server="10.11.89.2")
-# NetworkTables.initialize(server="localhost")
-# time.sleep(3)
+# NetworkTables.initialize(server="127.0.0.1")
+time.sleep(3)
 sd = NetworkTables.getTable("StreamDeck/0")
 buttons = []
 
 for i in range(0, 15):
+    sd.putBoolean(f"Action/{i}", False)
+    sd.putBoolean(f"Status/{i}", False)
     button = Button(i)
     buttons.append(button)
 
@@ -131,18 +120,24 @@ def get_streamdeck():
     return deck
 
 deck = get_streamdeck()
-try:
-    while True:
-            if not deck or not deck.connected():
-                deck = get_streamdeck()
-                if not deck:
-                    time.sleep(3)
-                continue
-            if not NetworkTables.isConnected():
-                time.sleep(3)
-                continue
-            for button in buttons:
-                button.update(deck)
-except Exception as e:
-    logging.info("EXCEPTING")
-    logging.debug("", exc_info=True)
+while True:
+    if not deck or not deck.connected():
+        deck = get_streamdeck()
+        if not deck:
+            time.sleep(3)
+    if not NetworkTables.isConnected():
+        time.sleep(3)
+        continue
+    try:
+        for button in buttons:
+            button.update(deck)
+    except Exception:
+        pass
+
+# Wait until all application threads have terminated (for this example,
+# this is when all deck handles are closed).
+for t in threading.enumerate():
+    if t is threading.currentThread():
+        continue
+    if t.is_alive():
+        t.join()

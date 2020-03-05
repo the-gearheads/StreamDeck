@@ -1,0 +1,1 @@
+py C:\src\streamdeck\streamdeck.py
