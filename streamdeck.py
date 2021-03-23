@@ -131,18 +131,14 @@ def get_streamdeck():
     return deck
 
 deck = get_streamdeck()
-try:
-    while True:
-            if not deck or not deck.connected():
-                deck = get_streamdeck()
-                if not deck:
-                    time.sleep(3)
-                continue
-            if not NetworkTables.isConnected():
+while True:
+        if not deck or not deck.connected():
+            deck = get_streamdeck()
+            if not deck:
                 time.sleep(3)
-                continue
-            for button in buttons:
-                button.update(deck)
-except Exception as e:
-    logging.info("EXCEPTING")
-    logging.debug("", exc_info=True)
+            continue
+        if not NetworkTables.isConnected():
+            time.sleep(3)
+            continue
+        for button in buttons:
+            button.update(deck)
